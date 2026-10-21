@@ -1,0 +1,89 @@
+name: Build
+
+# - push / pull request to main : build, run the SDK validator and the DSP test,
+#                                 keep the bundle as a workflow artifact
+# - push of a tag "v*"          : additionally create a GitHub Release and attach
+#                                 KTDelay-<tag>-win64.zip
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  VST3_SDK_REF: v3.8.1_build_84
+
+jobs:
+  build-windows:
+    name: Windows x64
+    runs-on: windows-2022
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout VST 3 SDK (${{ env.VST3_SDK_REF }})
+        uses: actions/checkout@v4
+        with:
+          repository: steinbergmedia/vst3sdk
+          ref: ${{ env.VST3_SDK_REF }}
+          submodules: recursive
+          path: VST_SDK/vst3sdk
+
+      - name: Configure
+        run: >
+          cmake -G "Visual Studio 17 2022" -A x64 -S . -B build
+          -DKTDELAY_BUILD_TESTS=ON
+          -DSMTG_CREATE_PLUGIN_LINK=OFF
+
+      - name: Build plug-in (runs the SDK validator)
+        run: cmake --build build --config Release --target KTDelay
+
+      - name: Build and run DSP test
+        run: |
+          cmake --build build --config Release --target ktdelay_dsptest
+          build\bin\Release\ktdelay_dsptest.exe
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $ref = "${{ github.ref_name }}"
+          $version = if ("${{ github.ref_type }}" -eq "tag") { $ref } else { "dev-" + "${{ github.sha }}".Substring(0, 7) }
+          $name = "KTDelay-$version-win64"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item build\VST3\Release\KTDelay.vst3 dist\KTDelay.vst3 -Recurse
+          Copy-Item README.md, LICENSE dist\
+          Compress-Archive -Path dist\* -DestinationPath "$name.zip"
+          "name=$name" >> $env:GITHUB_OUTPUT
+          Get-Item "$name.zip" | Select-Object Name, Length
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: KT Delay ${{ github.ref_name }}
+          files: ${{ steps.package.outputs.name }}.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            ## インストール
+
+            1. `${{ steps.package.outputs.name }}.zip` をダウンロードして展開します。
+            2. `KTDelay.vst3` フォルダを `C:\Program Files\Common Files\VST3\` にコピーします。
+            3. DAW でプラグインを再スキャンします。
+
+            Windows 10 / 11 (64 bit) 用の VST3 です。
+            Built with Steinberg VST 3 SDK ${{ env.VST3_SDK_REF }}.

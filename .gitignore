@@ -1,0 +1,44 @@
+# ---- build output -------------------------------------------------------
+build/
+build-*/
+out/
+cmake-build-*/
+dist/
+*.zip
+
+# ---- VST 3 SDK (download separately, see docs/DEVELOPMENT.md) -----------
+VST_SDK/
+vst-sdk_*.zip
+vst3sdk/
+
+# ---- Visual Studio / CMake ----------------------------------------------
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+compile_commands.json
+
+# ---- IDEs / editors --------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*~
+
+# ---- Python (tools/gen_images.py) ----------------------------------------
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ---- OS ----------------------------------------------------------------------
+Thumbs.db
+Desktop.ini
+.DS_Store
